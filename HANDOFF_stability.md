@@ -1,3 +1,5 @@
+> **Status (5 Nov 2026, later):** items 5.1–5.3 verified, finale / s2 / intro hand-over / image retry fixed and measured; see the last section of `CHANGELOG_review03.md`. This version is tagged **v1** and is frozen; further work happens in `Living_poster_v1.1/`.
+
 # Handoff: Living Poster v3, stability and stutter pass (5 Nov 2026)
 
 Paste or point the next chat at this file. It records everything done so far, the evidence, and what is still open.

@@ -4,11 +4,15 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const CHROME = process.env.CHROME || (process.platform === 'win32' ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome');
+// Linux containers have no display or GPU: run headless. SWGL=1 forces SwiftShader GPU raster (the path a real GPU takes,
+// so raster work per frame is comparable; frame times are not: compositing WebGL in software dominates them)
+const EXTRA = process.platform === 'win32' ? ['--window-position=-2600,40'] : ['--headless=new', '--no-sandbox', ...(process.env.SWGL ? ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] : [])];
 const OUT = fileURLToPath(new URL('./out', import.meta.url)).split(String.fromCharCode(92)).join('/');
 const [URL0, SID, T0, SECS, LABEL] = [process.argv[2], process.argv[3], +process.argv[4], +process.argv[5], process.argv[6] || 'spike'];
+// add ?fixed=30 to the URL to step the show 1/30 s per frame: a slow machine then still covers the same scene seconds
 const PORT = 9600 + Math.floor(Math.random() * 200), W = 1600, H = 900;
-const ch = spawn(CHROME, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${OUT}/chprof_spike`, `--window-size=${W},${H + 80}`, '--window-position=-2600,40',
+const ch = spawn(CHROME, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${OUT}/chprof_spike`, `--window-size=${W},${H + 80}`, ...EXTRA,
   '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
   '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: 'ignore' });
 fs.mkdirSync(OUT, { recursive: true });
@@ -33,9 +37,9 @@ events.length = 0;
 await send('Tracing.start', { categories: 'devtools.timeline,disabled-by-default-devtools.timeline,disabled-by-default-devtools.timeline.frame,cc,gpu,blink.image_decoding,skia', transferMode: 'ReportEvents' });
 await ev(`window.__fr = []; (function f(t){ window.__fr.push([t, App.T, cur() && cur().id]); if (!window.__stop) requestAnimationFrame(f); })(performance.now())`);
 await sleep(SECS * 1000);
-const fr = await ev(`(() => { const a = window.__fr; window.__stop = 1; const out = []; for (let i = 1; i < a.length; i++) { const d = a[i][0] - a[i-1][0]; if (d > 40) out.push([Math.round(d), +a[i][1].toFixed(2), a[i][2]]); } return { n: a.length, long: out }; })()`);
+const fr = await ev(`(() => { const a = window.__fr; window.__stop = 1; const out = []; for (let i = 1; i < a.length; i++) { const d = a[i][0] - a[i-1][0]; if (d > 40) out.push([Math.round(d), +a[i][1].toFixed(2), a[i][2]]); } return { n: a.length, long: out, T0: a.length ? +a[0][1].toFixed(2) : 0, T1: a.length ? +a[a.length-1][1].toFixed(2) : 0 }; })()`);
 const done = new Promise(r => traceDone = r); await send('Tracing.end'); await done;
-console.log(`${LABEL}: frames ${fr.n} in ${SECS}s; long frames:`, JSON.stringify(fr.long));
+console.log(`${LABEL}: frames ${fr.n} in ${SECS}s; ${fr.long.length} over 40 ms; worst`, JSON.stringify(fr.long.sort((a, b) => b[0] - a[0]).slice(0, 6)));
 // per thread names
 const thr = {}; for (const e of events) if (e.ph === 'M' && e.name === 'thread_name') thr[e.pid + ':' + e.tid] = e.args.name;
 const agg = {};
@@ -47,6 +51,11 @@ for (const e of events) {
 }
 const rows = Object.entries(agg).sort((a, b) => b[1].tot - a[1].tot).slice(0, 28);
 for (const [k, a] of rows) console.log(`  ${a.tot.toFixed(0).padStart(6)} ms tot  ${a.max.toFixed(0).padStart(5)} max  ${String(a.n).padStart(5)}x  ${k}`);
+// GPU raster work, the number that does not depend on how fast this machine composites: Chrome's GPU-raster path
+// (DoRasterCHROMIUM replays the display list, DoEndRasterCHROMIUM flushes it) plus SVG/CSS filter work and image decodes
+const sum = re => events.filter(e => e.ph === 'X' && e.dur && re.test(e.name)).reduce((a, e) => a + e.dur / 1000, 0);
+const rast = sum(/^RasterDecoderImpl::Do(End)?RasterCHROMIUM$/), dec = sum(/^(ImageDecodeTask|Decode Image|ImageFrameGenerator::decode)/), paint = sum(/^Paint$/);
+console.log(`SUMMARY ${LABEL}: frames ${fr.n}, raster ${rast.toFixed(0)} ms (${(rast / Math.max(1, fr.n)).toFixed(1)} ms/frame), decode ${dec.toFixed(0)} ms, paint ${paint.toFixed(0)} ms (${(paint / Math.max(1, fr.n)).toFixed(1)} ms/frame), sceneT ${fr.T0}..${fr.T1}`);
 fs.writeFileSync(`${OUT}/trace_${LABEL}.json`, JSON.stringify(events));
 await send('Browser.close').catch(() => {}); await sleep(800);
 try { ch.kill(); } catch {}

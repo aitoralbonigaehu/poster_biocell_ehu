@@ -4,13 +4,16 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const CHROME = process.env.CHROME || (process.platform === 'win32' ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome');
+// Linux containers have no display or GPU: run headless. SWGL=1 forces SwiftShader GPU raster (the path a real GPU takes,
+// so raster work per frame is comparable; frame times are not: compositing WebGL in software dominates them)
+const EXTRA = process.platform === 'win32' ? ['--window-position=-2600,40'] : ['--headless=new', '--no-sandbox', ...(process.env.SWGL ? ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] : [])];
 const OUT = fileURLToPath(new URL('./out', import.meta.url)).split(String.fromCharCode(92)).join('/');
 const label = process.argv[2] || 'run', URL0 = process.argv[3] || 'http://localhost:8766/', plan = process.argv[4] || 'film2';
 const PORT = 9400 + Math.floor(Math.random() * 200), W = 1600, H = 900;
 const dir = `${OUT}/soak_${label}`; fs.mkdirSync(dir, { recursive: true });
 const prof = `${OUT}/chprof_${label}`;
-const ch = spawn(CHROME, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`, `--window-size=${W},${H + 80}`, '--window-position=-2600,40',
+const ch = spawn(CHROME, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`, `--window-size=${W},${H + 80}`, ...EXTRA,
   '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling',
   '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: 'ignore' });
 fs.mkdirSync(OUT, { recursive: true });

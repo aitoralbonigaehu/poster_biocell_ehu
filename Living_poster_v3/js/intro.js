@@ -183,9 +183,14 @@ const Intro = {
   frame(Ts, A) {
     const T = this.tmap(Ts);
     this.draw(T, A);
-    if (T < 28.5) return { cam: GALLERY_CAM(), world: 'intro' };
     // behind the (still opaque) film the poster waits, framed so its phagolysosome is exactly the film's one
     const [px, py, pr] = window.GEOM.phago, w0 = pr * window.innerWidth / (this.RP_END * this.s * this.ZOOM);
+    if (T < 28.5) {
+      // decode the close-up's sharp cut-outs and tiles off the frame a moment before the poster appears beneath the
+      // film (the hand-over used to decode them on its first frames: 150-360 ms hitches)
+      if (T > 24) { const c = [px, py, w0]; LOD.warm(c); Tiles.warm(c); }
+      return { cam: GALLERY_CAM(), world: 'intro' };
+    }
     const k = R(T, 31.9, 36.0, ease.cam);
     return { cam: k <= 0 ? [px, py, w0] : Cam.zoomPath([px, py, w0], GALLERY_CAM(), 1.1)(k), world: 'poster' };
   },

@@ -140,12 +140,20 @@ const Pre = {
   m: new Map(),
   ready(url) {
     let r = this.m.get(url);
-    if (!r) { r = { ok: false, t: 0, im: new Image() }; r.im.src = url; this.m.set(url, r); this._go(r); }
+    if (!r) { r = { url, ok: false, t: 0, fail: 0, retry: 0, busy: false, im: new Image() }; r.im.src = url; this.m.set(url, r); this._go(r); }
     else if (r.ok && App.A - r.t > 4) { r.ok = false; this._go(r); }
+    else if (!r.ok && !r.busy && r.fail && App.A > r.retry) { r.im = new Image(); r.im.src = url; this._go(r); }
     r.t = App.A;
     return r.ok;
   },
-  _go(r) { r.im.decode().then(() => { r.ok = true; }, () => { r.ok = true; }); },
+  // a failed fetch or decode (a dropped connection, a busy server) used to count as ready, and the broken picture
+  // was attached: the drawing vanished. It now stays not-ready (the level beneath stays on screen) and is tried
+  // again after 1, 2, 4 ... 30 s while it is still wanted
+  _go(r) {
+    r.busy = true;
+    r.im.decode().then(() => { r.ok = true; r.fail = 0; r.busy = false; },
+      () => { r.busy = false; r.fail++; r.retry = App.A + Math.min(30, 2 ** (r.fail - 1)); if (r.fail === 3) console.warn('image keeps failing:', r.url); });
+  },
 };
 
 /* ------------------------------------------------------------------ hi-res tiles, attached only when the camera is close */
@@ -730,8 +738,12 @@ function render(dt) {
     if (GLFX.ok) { if (live > 0) GLFX.dim(L.x, L.y, R0 * 0.99, R0 * 2.6, '#0E0A06', 0.38 * live * 0.85 * clamp(L.k)); }
     else setA($('lensDim'), { cx: L.x.toFixed(1), cy: L.y.toFixed(1), r: (R0 * 6.2).toFixed(1), opacity: (live * 0.85).toFixed(3) });
   } else { Loupe.off(); App.loupe.k = 0; App.loupe.kv = 0; }   // no glass off the sheet
-  // the wobble rests while the camera travels between sections (see Actors._wobble)
-  Actors.wobK += ((trip ? 0 : 1) - Actors.wobK) * (1 - Math.exp(-dt / 0.18));
+  // the wobble rests while the camera travels between sections, and while it zooms or pans fast inside one (see
+  // Actors._wobble: under the filter every raster decodes the drawing again; a fast move re-rasters every frame,
+  // and the ripple cannot be seen at that speed anyway). Speed in screens per second, as Depth measures it.
+  const camV = App.camS ? Math.hypot(App.camS.vx, App.camS.vy) / cam[2] + Math.abs(App.camS.vl) : 0;
+  const wobT = trip ? 0 : 1 - clamp((camV - 0.3) / 0.5);
+  Actors.wobK += (wobT - Actors.wobK) * (1 - Math.exp(-dt / (wobT > Actors.wobK ? 0.35 : 0.15)));
   Tiles.update(cam, lbox);
   LOD.update(cam, lbox, App.loupe.curMag || 1);
   Actors.end(A); Regions.end(A); Overs.end(); G.end(); Intro.end();

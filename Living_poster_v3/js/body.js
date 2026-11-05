@@ -105,7 +105,7 @@ const Body = {
       }
       out.push([x + Math.cos(ang) * r * 2.6, y + Math.sin(ang) * r * 2.6, r * 1.05]);
       for (const [cx, cy, rr] of out) {
-        el('circle', { cx: cx.toFixed(3), cy: cy.toFixed(3), r: rr.toFixed(3), fill: '#F4D3C8', stroke: '#8E5B5B', 'stroke-width': (rr * 0.09).toFixed(3), opacity: 0.95 }, this.sacG);
+        el('circle', { cx: cx.toFixed(3), cy: cy.toFixed(3), r: rr.toFixed(3), fill: '#F4D3C8', stroke: '#8E5B5B', 'stroke-width': (rr * 0.09).toFixed(3), 'fill-opacity': 0.95, 'stroke-opacity': 0.95 }, this.sacG);
         el('circle', { cx: (cx - rr * 0.25).toFixed(3), cy: (cy - rr * 0.3).toFixed(3), r: (rr * 0.35).toFixed(3), fill: '#FFF6F1', opacity: 0.5 }, this.sacG);
       }
       return out;
@@ -160,7 +160,11 @@ const Body = {
     return [T.x, T.y, wfit * this.s];
   },
 
+  /** a mote: on the GPU layer when it is up, so a moving speck never makes Chrome re-raster the whole vector tree
+   *  under it (the finale hold ran at ~2-5 fps from that alone); SVG dots are the fallback */
   dot(x, y, r, fill, op) {
+    if (op <= 0.002) return;
+    if (GLFX.ok) { GLFX.disc(x, y, r, fill, op, 0, 0.15); return; }
     let e = this.poolDots[this._di];
     if (!e) { e = el('circle', {}, this.dyn); this.poolDots.push(e); }
     e.style.display = '';
@@ -169,12 +173,12 @@ const Body = {
   },
 
   /** draw the opening at story time T; returns the camera [cx, cy, w] in body units */
-  draw(T, A, aspect) {
+  draw(T, A, aspect, breathe = true) {
     this._di = 0;
     // person draws itself, lungs bloom, the chest rises with the in-breath
     this.strokes.forEach((s, i) => s.setAttribute('stroke-dasharray', `${(1000 * R(T, 6.6 + i * 0.12, 8.6 + i * 0.12, ease.cubic)).toFixed(0)} 1000`));
     const bloom = R(T, 8.0, 10.5, ease.out);
-    const breath = R(T, 9.4, 12.2, ease.sine) * 0.035 + Math.sin(A * 1.25) * 0.004 * bloom;
+    const breath = R(T, 9.4, 12.2, ease.sine) * 0.035 + (breathe ? Math.sin(A * 1.25) * 0.004 * bloom : 0);   // the finale holds still: a breathing scale re-rasters the tree
     this.lungG.setAttribute('opacity', bloom.toFixed(3));
     this.lungG.setAttribute('transform', `translate(800,600) scale(${(0.96 + 0.04 * bloom + breath).toFixed(4)}) translate(-800,-600)`);
     const tree = R(T, 9.0, 12.0);

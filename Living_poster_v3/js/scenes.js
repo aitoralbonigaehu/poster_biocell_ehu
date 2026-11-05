@@ -993,7 +993,7 @@ SCENES.push({
   drawBody(T, A, aspect) {
     if (T < 0.6) return { cam: GALLERY_CAM(), world: 'poster' };
     const t = Math.max(12.6, 29.8 - (T - 0.6) * 1.8);
-    const cam = Body.draw(t, A, aspect);
+    const cam = Body.draw(t, A, aspect, false);
     DiveFX.draw(t, A, cam, aspect, 1 - R(T, 9, 11));
     return { cam, world: 'body' };
   },

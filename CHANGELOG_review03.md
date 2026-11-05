@@ -112,3 +112,25 @@ Still open:
   - With WebGL: all 9 scenes at 15/50/85 %, the gallery glass at 6 spots, and autoplay — 0 console errors.
   - `?nogl` fallback and play mode (G) with a click — 0 console errors.
 - **Left as is: s2 receptor shot (7–16 s).** The tall shot is already against the sheet's left edge, so some empty cytoplasm on the right is inherent at 16:9.
+
+## Living poster: stability and stutter pass (5 Nov 2026) → frozen as **v1**
+
+The three reported problems were stutters, multi-second collapses, and a blank second round. Each fix below was measured. Tools: `tools/stability/` (`soak.mjs`, `spike.mjs`, `serve.py`); handoff notes: `HANDOFF_stability.md`.
+
+| Problem | Cause | Fix | Before → after |
+|---|---|---|---|
+| **Blank second round** (dark desk, a shrinking square of poster, then dark map/s1) | When the gallery glass closed, `Loupe.update` returned before removing the "living fluid" filter from `#wFlow`, the group wrapping the whole world. Its small filter region cropped the sheet away, and the whole poster went through a filter pass every frame. | `Loupe.off()` (hide glass, remove filter + transforms, drop direct-view clip), called on the early return and whenever the world is not the poster | `flowG` stuck `true` through round 2 → `false` throughout; round-2 intro/dive luminance 25–40 → 180–210 (round 1 ≈ 190) |
+| **Finale hold** (fin T≈10–22, 1.2–1.3 s frames) | The camera holds still, but two things moved every frame: a 0.4 % breathing scale on the lungs and 70 dust motes. Either one made Chrome re-raster the whole bronchial tree (≈3,400 SVG elements). | Motes drawn on the GPU layer (SVG kept as fallback). The finale passes `breathe = false`. Sac circles use `fill-opacity`/`stroke-opacity` instead of element `opacity` (an offscreen layer per circle, ×1,011). | GPU raster in the hold: **58.7 → 3.4 ms/frame** (same machine, GPU-raster path) |
+| **s2 T≈45.8–47.3** (cluster up to 630 ms) | The camera zooms 613 → 213 mm at ~1.6 screens/s while `matur.nascent` wobbles. Under the wobble filter, every raster decodes the drawing again, and a fast zoom re-rasters every frame. | The wobble eases out with camera speed, as well as during trips (`Actors.wobK`, speed as `Depth` measures it), and is back within ~0.4 s of the camera settling | At the measured zoom the wobble filter is off (wobK 0.01–0.13); it returns at T 47.4 |
+| s3 T≈32.5, other in-scene moves | Same mechanism | Same fix | wobK 0.06 during the move |
+| **Intro hand-over** (T≈8–12, 150–360 ms) | The poster appears under the film at a tight phagolysosome zoom, and its sharp cut-outs and tiles were decoded on the first frames | `LOD.warm` + `Tiles.warm` for the hand-over camera from film time 24 (≈1 s ahead) | Raster-blocking decode in the window 474 → 293 ms; longest single decode 73 → 47 ms |
+| Broken drawings after a dropped connection | `Pre._go` marked a failed decode as ready, so a broken `href` was attached and the drawing vanished | Failed decodes stay not-ready (the level beneath stays on screen) and retry after 1, 2, 4 … 30 s; a warning after 3 failures | — |
+| One throwing hook froze the frame | One exception skipped the rest of `render`: `G.end`, `Intro.end`, the camera, the GPU pass | `guard()` around every scene hook; `slip()` logs each distinct error once; non-finite cameras fall back to the last good one | — |
+| WebGL context loss | The GPU layer stayed off for the rest of the show (every particle drawn as SVG) | `webglcontextlost` hides the layer; `webglcontextrestored` rebuilds program, buffers and atlas | Tested with `WEBGL_lose_context`: lost → SVG fallback, no errors → restored, `ok` and atlas back, 137 particles drawn |
+| 404 at load | Chrome's automatic `/favicon.ico` request (there is no favicon) | `<link rel="icon" href="data:,">` in both `index.html` files | 404 gone |
+
+Full two-round soak after the fixes (`soak.mjs film2fix … film2`, ≈13 min): 0 console errors, 0 exceptions, 0 context losses. 0 blank screenshots (before: the whole of round 2 from the dive on). Round-2 luminance equals round 1 in every section (intro 198/199, map 143/143, s1 159/159, s2 188/188 …). DOM is flat at 5,905 nodes and the heap stays at 7–41 MB. Contact sheet: `tools/stability/sheet_rounds_fix.jpg`.
+
+Measurement notes. The cloud machine has no GPU. Chrome there either rasterises on CPU threads (Playwright default: frame times look fine even before the fixes) or on SwiftShader's software GPU (`SWGL=1`). The second is the same path as a real GPU, so its **raster work per frame** compares to the presenter laptop; its frame times do not, because compositing WebGL in software dominates them. The table therefore quotes raster and decode work, not fps. Re-run `soak.mjs … film2` on the presenter laptop to get real frame times.
+
+Light poster PDF: `Macrophage_poster_light.pdf` (`tools/make_light_pdf.py`). It is 11.9 MB instead of 34 MB: one 200 dpi JPEG (q88, no chroma subsampling) plus an invisible, searchable text layer. One full render takes ~0.8 s instead of ~40–70 s. The vector PDF stays the master.
