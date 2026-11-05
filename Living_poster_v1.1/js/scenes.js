@@ -56,6 +56,8 @@ function initPaths() {
   PATHS.red = Pth(g.red);
   PATHS.blue = Pth(g.blue);
   PATHS.cell = Pth(g.cell, { smooth: false, closed: true });
+  PATHS.wall = Pth(g.wallTop.filter(p => p[0] > 0 && p[0] < 1100), { smooth: false });
+  PATHS.question = Pth([[78, 410], [150, 560], [330, 700], [560, 800]]);
   const ph = g.phago;
   PATHS.recycle = Pth([[ph[0] + 40, ph[1] + 50], [ph[0] + 92, ph[1] - 10], [705, 540], [745, 430], [790, 330], [835, 240], LP('ribosome', 0.2, 1.6)]);
   const my = LP('MyD88', 0.85, 0.15), nf = LP('NF-κB → inflammation', 0.02, 0.5);
@@ -233,6 +235,97 @@ function stream(id, a, b, n, period, A, op, s = 0.9, jitter = 1, layer = 'fx') {
   }
 }
 
+/* ------------------------------------------------------------------ inset cards (screen space, paper and ink) for
+   the two ideas of section 4 that the poster draws only as labels: the Rab switch and antigen presentation */
+const Cards = {
+  frame(g, title, w = 300, h = 214) {
+    el('ellipse', { rx: w * 0.62, ry: h * 0.62, fill: 'url(#cardGlow)' }, g);
+    el('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 7, fill: PAPER, opacity: 0.94 }, g);
+    el('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 7, fill: 'none', stroke: INK_SOFT, 'stroke-width': 1.3, filter: 'url(#rough)' }, g);
+    const t = el('text', { x: 0, y: -h / 2 + 27, 'text-anchor': 'middle', fill: INK, 'font-family': HAND, 'font-size': 24 }, g); t.textContent = title;
+  },
+  txt(g, x, y, s, size = 13, col = INK, anchor = 'middle', fam = SANS) { const t = el('text', { x, y, 'text-anchor': anchor, fill: col, 'font-family': fam, 'font-size': size }, g); t.textContent = s; return t; },
+  place(p, k) {
+    const u = HUD.u;
+    p.g.setAttribute('transform', `translate(${(262 * u).toFixed(1)},${(HUD.H * 0.5).toFixed(1)}) scale(${(1.55 * u * (0.94 + 0.06 * ease.settle(k))).toFixed(4)})`);
+    p.g.setAttribute('opacity', k.toFixed(3));
+  },
+  /** Rab: GDP (off, held in the cytosol by GDI) -> GEF -> GTP (on, prenyl anchor in the membrane, recruits
+   *  effectors) -> GAP -> GDP. t: seconds into the card (a token runs the cycle; the 'on' state glows) */
+  rab(k, t) {
+    HUD.prop('card:rab', (g, p) => {
+      Cards.frame(g, 'Rab · a molecular switch');
+      el('path', { d: 'M-138,-34 H138 M-138,-26 H138', stroke: '#B5655A', 'stroke-width': 2.2, fill: 'none', opacity: 0.75 }, g);
+      Cards.txt(g, -132, -40, 'membrane', 10, INK_SOFT, 'start');
+      Cards.txt(g, -132, 96, 'cytosol', 10, INK_SOFT, 'start');
+      // the cycle
+      el('path', { d: 'M-52,38 C-40,-6 20,-16 52,-12', fill: 'none', stroke: C.green, 'stroke-width': 2, 'marker-end': '' }, g);
+      el('path', { d: 'M44,-6 l10,-6 l-2,11 z', fill: C.green }, g);
+      el('path', { d: 'M62,10 C56,52 0,72 -50,58', fill: 'none', stroke: C.amber, 'stroke-width': 2 }, g);
+      el('path', { d: 'M-44,64 l-10,-4 l8,-8 z', fill: C.amber }, g);
+      Cards.txt(g, -20, 4, 'GEF', 15, C.green, 'middle', HAND); Cards.txt(g, -20, 18, 'GDP → GTP', 10, C.green);
+      Cards.txt(g, 30, 74, 'GAP', 15, C.amber, 'middle', HAND); Cards.txt(g, 30, 88, 'GTP hydrolysis', 10, C.amber);
+      // on: Rab-GTP anchored by its prenyl tail, recruiting effectors
+      p.onGlow = el('circle', { cx: 74, cy: -12, r: 30, fill: 'url(#cardGlow)', opacity: 0 }, g);
+      el('path', { d: 'M74,-30 l-3,-4 l3,-4 l-3,-4', fill: 'none', stroke: INK, 'stroke-width': 1.4 }, g);
+      p.on = el('circle', { cx: 74, cy: -12, r: 17, fill: C.rab7, stroke: INK, 'stroke-width': 1.2 }, g);
+      Cards.txt(g, 74, -8, 'GTP', 11, '#fff');
+      Cards.txt(g, 112, 8, 'on', 13, C.rab7, 'middle', HAND);
+      p.eff = el('g', { opacity: 0 }, g);
+      el('path', { d: 'M90,-24 L118,-62', stroke: INK_SOFT, 'stroke-width': 1, 'stroke-dasharray': '3 2' }, p.eff);
+      Cards.txt(p.eff, 112, -68, 'effectors: tethers, motors', 10.5, INK, 'end');
+      // off: Rab-GDP, its anchor tucked into GDI, in the cytosol
+      p.off = el('circle', { cx: -72, cy: 54, r: 17, fill: '#9AA3B5', stroke: INK, 'stroke-width': 1.2 }, g);
+      Cards.txt(g, -72, 58, 'GDP', 11, '#fff');
+      el('path', { d: 'M-96,40 A26,26 0 0 0 -96,70', fill: 'none', stroke: C.violet, 'stroke-width': 3, 'stroke-linecap': 'round' }, g);
+      Cards.txt(g, -108, 84, 'GDI', 13, C.violet, 'middle', HAND);
+      Cards.txt(g, -40, 84, 'off', 13, INK_SOFT, 'middle', HAND);
+      p.tok = el('circle', { r: 4.2, fill: '#FFE070', stroke: '#8C6A12', 'stroke-width': 1 }, g);
+      Cards.txt(g, 0, 101, 'Rab5 on early · Rab7 on late phagosomes', 10.5, INK_SOFT);
+    }, (k, a) => {
+      const p = HUD.props['card:rab']; Cards.place(p, k);
+      // the token: GEF arc (0-0.35), on (0.35-0.55), GAP arc (0.55-0.9), off (0.9-1); one cycle every 3.2 s
+      const c = frac(a.t / 3.2), bz = (P, q) => { const u = 1 - q; return [u * u * u * P[0][0] + 3 * u * u * q * P[1][0] + 3 * u * q * q * P[2][0] + q * q * q * P[3][0], u * u * u * P[0][1] + 3 * u * u * q * P[1][1] + 3 * u * q * q * P[2][1] + q * q * q * P[3][1]]; };
+      const gef = [[-52, 38], [-40, -6], [20, -16], [56, -12]], gap = [[62, 10], [56, 52], [0, 72], [-54, 58]];
+      const xy = c < 0.35 ? bz(gef, c / 0.35) : c < 0.55 ? [74, -12] : c < 0.9 ? bz(gap, (c - 0.55) / 0.35) : [-72, 54];
+      p.tok.setAttribute('cx', xy[0].toFixed(1)); p.tok.setAttribute('cy', xy[1].toFixed(1));
+      const on = c > 0.33 && c < 0.6 ? 1 : 0;
+      p.onGlow.setAttribute('opacity', (0.9 * on).toFixed(2)); p.eff.setAttribute('opacity', (R(a.t, 2.5, 3.3)).toFixed(2));
+    }, k, { t });
+  },
+  /** antigen presentation: a peptide from the digested bacterium sits in MHC class II on the macrophage surface; a
+   *  CD4+ T cell docks with its TCR, CD4 binding the MHC II stalk. t: seconds into the card */
+  mhc(k, t) {
+    HUD.prop('card:mhc', (g, p) => {
+      Cards.frame(g, 'antigen presentation');
+      // T cell above, macrophage below
+      p.tcell = el('g', {}, g);
+      el('path', { d: 'M-140,-62 Q0,-74 140,-62 L140,-80 L-140,-80 Z', fill: '#DCE6F6', stroke: '#4A6FA5', 'stroke-width': 1.6 }, p.tcell);
+      Cards.txt(p.tcell, -96, -66, 'CD4⁺ T cell', 12, '#2D4F86', 'middle', HAND);
+      el('path', { d: 'M-12,-68 V-30 M12,-68 V-30', stroke: '#2D4F86', 'stroke-width': 5, 'stroke-linecap': 'round' }, p.tcell);
+      Cards.txt(p.tcell, 30, -46, 'TCR', 12, '#2D4F86', 'start');
+      el('path', { d: 'M52,-68 C52,-40 40,-20 30,0', stroke: C.violet, 'stroke-width': 4, fill: 'none', 'stroke-linecap': 'round' }, p.tcell);
+      Cards.txt(p.tcell, 62, -26, 'CD4', 12, C.violet, 'start');
+      el('path', { d: 'M-140,62 Q0,52 140,62 L140,82 L-140,82 Z', fill: '#F7CDB0', stroke: '#B5655A', 'stroke-width': 1.6 }, g);
+      Cards.txt(g, -92, 78, 'macrophage', 12, '#8A3E32', 'middle', HAND);
+      el('path', { d: 'M-14,58 V-8 M14,58 V-8', stroke: '#C08A2E', 'stroke-width': 6, 'stroke-linecap': 'round' }, g);
+      el('path', { d: 'M-26,-4 Q0,10 26,-4', stroke: '#C08A2E', 'stroke-width': 4, fill: 'none', 'stroke-linecap': 'round' }, g);
+      Cards.txt(g, 34, 40, 'MHC II', 13, '#8C5A12', 'start');
+      p.pep = el('g', {}, g);
+      for (let i = 0; i < 6; i++) el('circle', { cx: -15 + i * 6, cy: -12 + 2 * Math.sin(i), r: 3, fill: C.green, stroke: '#17694A', 'stroke-width': 0.8 }, p.pep);
+      Cards.txt(g, -44, 20, 'peptide', 12, '#17694A', 'end');
+      p.spark = el('circle', { cx: 0, cy: -20, r: 26, fill: 'url(#cardGlow)', opacity: 0 }, g);
+      Cards.txt(g, 0, 100, 'peptides from the digested bacterium, shown to T cells', 10.5, INK_SOFT);
+    }, (k, a) => {
+      const p = HUD.props['card:mhc']; Cards.place(p, k);
+      const drop = ease.out(R(a.t, 0.4, 1.6)), dock = ease.cubic(R(a.t, 2.2, 3.8));
+      p.pep.setAttribute('transform', `translate(0,${(-60 * (1 - drop)).toFixed(1)})`); p.pep.setAttribute('opacity', R(a.t, 0.3, 0.8).toFixed(2));
+      p.tcell.setAttribute('transform', `translate(0,${(-34 * (1 - dock)).toFixed(1)})`); p.tcell.setAttribute('opacity', R(a.t, 1.8, 2.6).toFixed(2));
+      p.spark.setAttribute('opacity', (0.95 * bump(a.t, 3.7, 4.1, 5.5, 7) * (0.8 + 0.2 * Math.sin(a.t * 6))).toFixed(2));
+    }, k, { t });
+  },
+};
+
 /* ================================================================== SECTIONS ================================================================== */
 const SCENES = [];
 
@@ -270,52 +363,136 @@ SCENES.push({
   hud(T) { Trip.mapHud(T); },
 });
 
-/* ---------------------------------------------------------------- 1 · alveolar macrophage */
+/* ---------------------------------------------------------------- 1 · alveolar macrophage (script 01, Aitor)
+   Every breath carries microbes and particles to the alveoli; the macrophage lives on the air-facing side of the
+   epithelium; it does more than eat (surfactant, efferocytosis); the question: handle it without injuring the tissue.
+   No intracellular steps are previewed here (pointing cue). */
+const S1 = {
+  dome: [[112, 762], [177, 763]],          // the two type II cells' domes (lamellar bodies), on the air side
+  dying: [159, 757.5],                    // a cell undergoing programmed death, beside the macrophage's foot
+  foot: [176, 752],                       // the macrophage's lower-left edge
+  surf: x => 765.5 + 0.026 * (x - 60),    // the air-facing surface of the epithelium (as drawn, bottom left)
+};
 SCENES.push({
   id: 's1', num: '1', title: 'Alveolar macrophage', speaker: 'Aitor', color: '#1E2433', hit: [20, 104, 220, 140],
-  beats: [['the alveolus', 7.5], ['the cell', 7], ['look closer', 13]],
+  beats: [['every breath', 8], ['on the air-facing side', 8], ['more than eating', 13], ['the question', 9]],
   titleOut: 6.5, ambient: 0.8,
   cam(T) {
     return Cam.track([
       { t: 0, r: [12, 100, 250, 150] },
-      { t: 7.5, r: [-26, -22, 1152, 944], d: 2.8 },
+      { t: 8, r: [-26, -22, 1152, 944], d: 2.8 },
+      { t: 14.2, r: [-8, 610, 430, 242], d: 2.4 },        // down to the epithelium, bottom left
+      { t: 16.8, r: [62, 693, 205, 115], d: 2.2 },        // the type II cells, the dying cell, the macrophage's foot
+      { t: 29, r: [-26, -22, 1152, 944], d: 3 },
     ], T);
   },
-  focus(T) { return T < 7.5 ? { x: 120, y: 175, rx: 150, ry: 100, k: 0.55 * R(T, 0.5, 2) } : { x: 550, y: 450, rx: 700, ry: 600, k: 0 }; },
+  focus(T) {
+    if (T < 8) return { x: 120, y: 175, rx: 150, ry: 100, k: 0.55 * R(T, 0.5, 2) };
+    if (T > 15.5 && T < 29.5) return { x: 150, y: 750, rx: 140, ry: 70, k: 0.6 * R(T, 15.5, 17.5) * (1 - R(T, 28.5, 29.5)) };
+    return { x: 550, y: 450, rx: 700, ry: 600, k: 0 };
+  },
+  shakes: [[26.6, 0.25]],
   draw(T, A) {
+    // 1a every breath: air pours down the sketch's bronchiole into the alveolar sac, and with it microbes and dust
     const sc = LP('this scene', 0.5, -1.2);
     inkRing('scene', sc[0], sc[1] + 1, 12, R(T, 2.5, 4.2), C.red, 0.55);
     G.glow(sc[0], sc[1], 16, '#FFE7B8', 0.6 * bump(T, 3, 4, 6.5, 8));
-    W('this scene', R(T, 3, 4), C.red);
+    W('this scene', R(T, 3, 4) * (1 - R(T, 30, 31)), C.red);
     W('Alveolar macrophage', R(T, 1, 2), C.gold);
-    // the alveolar sac breathes: air drifts down the sketch's bronchiole
-    for (let i = 0; i < 12; i++) {
-      const t = frac(A / 3 + i / 12);
-      G.dot(lerp(40, 150, t) + 4 * Math.sin(i), lerp(130, 190, t), 0.6, '#6FA9D8', 0.7 * bump(t, 0, 0.1, 0.8, 1) * R(T, 1, 2) * (1 - R(T, 7, 8)));
+    W('bronchiole', bump(T, 0.8, 1.6, 6.5, 7.5), C.blue);
+    W('alveolar sac', bump(T, 2, 2.8, 6.5, 7.5), C.blue);
+    const air = R(T, 0.5, 1.5) * (1 - R(T, 7.5, 8.5));
+    const into = i => t => { const u = frac(t / 3.2 + i * 0.137); return [lerp(78, 158, u) + 4 * Math.sin(i * 1.9 + t), lerp(140, 196, ease.sine(u)) + 2 * Math.cos(i + t * 1.3)]; };
+    for (let i = 0; i < 12; i++) { const t = frac(A / 3 + i / 12); G.dot(lerp(40, 150, t) + 4 * Math.sin(i), lerp(130, 190, t), 0.6, '#6FA9D8', 0.7 * bump(t, 0, 0.1, 0.8, 1) * air); }
+    for (let i = 0; i < 5; i++) {                    // microbes: little green rods, tumbling
+      const p = into(i)(A), u = frac(A / 3.2 + i * 0.137), op = bump(u, 0, 0.12, 0.8, 1) * air * R(T, 1.5, 2.5), a = A * 1.6 + i;
+      G.line([[p[0] - Math.cos(a) * 1.4, p[1] - Math.sin(a) * 1.4], [p[0] + Math.cos(a) * 1.4, p[1] + Math.sin(a) * 1.4]], '#6FA552', 1.1, op);
     }
-    // an ink light travels once round the macrophage's outline
-    const u = R(T, 8.6, 13.5, ease.sine);
+    for (let i = 0; i < 6; i++) {                    // fine particles: glassy specks
+      const p = into(i + 9)(A * 0.9), u = frac(A * 0.9 / 3.2 + (i + 9) * 0.137);
+      G.use('sp-silica', p[0], p[1], 0.38 + 0.15 * hash(i), A * (0.6 + hash(i + 3)), bump(u, 0, 0.12, 0.8, 1) * air * R(T, 2.5, 3.5));
+    }
+    // 1b on the air-facing side of the epithelium: a light runs round the cell, then along the surface it sits on
+    const u = R(T, 9.2, 13, ease.sine);
     if (u > 0 && u < 1) G.comet(PATHS.cell, u, 0.18, C.gold, 2.4, 0.85);
-    if (T > 8.6) G.glow(430, 128, 30, '#FFF0C8', 0.35 * bump(T, 13, 13.8, 15, 17));
-  },
-  // a scripted loupe tour across the whole sheet: bacterium -> Golgi -> phagolysosome -> silica
-  loupe(T) {
-    if (T < 15 || T > 27) return null;
-    const stops = [[90, 330], [830, 250], [622, 665], [850, 560], [90, 330]];
-    const f = clamp((T - 15.4) / 11) * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(f));
-    const u = ease.cubic(clamp((f - i) * 1.6));   // dwell at each stop, then glide
-    return [lerp(stops[i][0], stops[i + 1][0], u), lerp(stops[i][1], stops[i + 1][1], u)];
+    if (T > 9) G.glow(430, 128, 30, '#FFF0C8', 0.35 * bump(T, 12, 12.8, 14, 15.5));
+    const wu = R(T, 12.6, 15.8, ease.sine);
+    if (wu > 0 && wu < 1) G.comet(PATHS.wall, wu, 0.22, '#7FC4E8', 2.2, 0.9);
+    W('type I', bump(T, 14, 14.8, 27, 28.5), C.blue);
+    W('type II', bump(T, 14.4, 15.2, 27, 28.5), C.blue);
+    // 1c surfactant: lamellar bodies rise out of the type II cells, unfold into a film on the surface; the excess is
+    // taken up by the macrophage's foot
+    const film = R(T, 18.2, 21.5);
+    S1.dome.forEach(([dx, dy], j) => {
+      for (let i = 0; i < 5; i++) {
+        const t0 = 17.2 + i * 0.55 + j * 0.3, k = R(T, t0, t0 + 1.4, ease.out), pop = R(T, t0 + 1.2, t0 + 1.9);
+        if (k <= 0 || pop >= 1) continue;
+        const x = dx + (hash(i + j * 7) - 0.5) * 7 + 5 * pop * (hash(i + 3) - 0.3), y = dy - 1 - 5.5 * k + 4.5 * pop;
+        G.ring(x, y, 1.15 + 1.6 * pop, '#C9A24A', 0.28, (1 - pop) * 0.95);
+        G.ring(x, y, 0.6 + 1.1 * pop, '#E6C878', 0.22, (1 - pop) * 0.8);
+        G.dot(x, y, 0.45, '#FFF3D0', (1 - pop) * 0.9);
+      }
+    });
+    if (film > 0) {
+      const x0 = lerp(112, 40, film), x1 = lerp(176, 300, film), pts = [];
+      for (let x = x0; x <= x1; x += 3) pts.push([x, S1.surf(x) - 0.9 + 0.25 * Math.sin(x * 0.4 + A * 1.5)]);
+      G.line(pts, '#E3C36E', 0.9, 0.7 * film * (1 - R(T, 30, 31.5)));
+    }
+    for (let i = 0; i < 7; i++) {                    // the excess drifts to the foot and is taken in
+      const t = frac(A / 2.4 + i / 7), x = lerp(150, 186, ease.sine(R(t, 0, 0.6))), y = t < 0.6 ? S1.surf(x) - 1.2 : lerp(S1.surf(186) - 1.2, 748, ease.in(R(t, 0.6, 1)));
+      G.dot(x + (t > 0.6 ? 2 * Math.sin(i) : 0), y, 0.55, '#E6C878', bump(t, 0, 0.1, 0.8, 1) * R(T, 20.5, 21.5) * (1 - R(T, 28, 29)));
+    }
+    // 1d efferocytosis: a cell dying by programme shrinks and blebs, shows its "eat-me" signal, and is wrapped
+    // and taken in quietly; the calm glow afterwards: resolution, not alarm
+    const [cx, cy] = S1.dying, shrink = R(T, 21.5, 23.2, ease.out), wrap = R(T, 23.6, 26.4, ease.cubic), take = R(T, 26.4, 27.8, ease.in);
+    const dx = lerp(cx, S1.foot[0] + 8, take), dy = lerp(cy, S1.foot[1] - 3, take), dr = lerp(5.4, 4.0, shrink) * (1 - 0.3 * take);
+    const dOp = R(T, 16.6, 17.6) * (1 - R(T, 27.2, 28));
+    if (dOp > 0.01) {
+      G.dot(dx, dy, dr + 0.5, '#8A6B78', dOp * 0.9);
+      G.dot(dx, dy, dr, '#E9D6DC', dOp);
+      G.dot(dx - dr * 0.15, dy + dr * 0.1, dr * 0.42, '#7B5A8E', dOp * (0.9 - 0.3 * shrink));    // the condensed nucleus
+      for (let i = 0; i < 7; i++) {                  // blebs
+        const a = i / 7 * TAU + 0.4, k = shrink * (0.6 + 0.4 * Math.sin(A * 3 + i));
+        G.dot(dx + Math.cos(a) * dr * 1.02, dy + Math.sin(a) * dr * 1.02, 1.3 * k, '#E9D6DC', dOp * k);
+      }
+      for (let i = 0; i < 10; i++) {                 // phosphatidylserine flipped out: the "eat-me" signal
+        const a = i / 10 * TAU + A * 0.2, k = R(T, 22.4 + i * 0.08, 23 + i * 0.08);
+        G.dot(dx + Math.cos(a) * (dr + 0.6), dy + Math.sin(a) * (dr + 0.6), 0.5, C.gold, dOp * k);
+      }
+    }
+    if (wrap > 0 && take < 1) {                      // two arms of the foot reach round it
+      for (const sgn of [-1, 1]) {
+        const pts = [], th = wrap * 2.7;
+        for (let i = 0; i <= 14; i++) { const a = sgn * th * i / 14, r = dr + 2.4; pts.push([dx + Math.cos(a) * r, dy + Math.sin(a) * r * 0.95]); }
+        pts.unshift([S1.foot[0], S1.foot[1] + sgn * 2.5]);
+        G.line(pts, '#B5655A', 3.4, (1 - take) * 0.9);
+        G.line(pts, '#F7CDB0', 2.4, (1 - take));
+      }
+    }
+    G.glow(S1.foot[0] + 8, S1.foot[1] - 3, 16, '#A8E6C4', 0.55 * bump(T, 27.2, 28, 29, 31));
+    // 1e the question: from this bacterium on the left to the lung tissue below
+    const q = R(T, 30.5, 34.5, ease.sine);
+    G.draw('s1q', PATHS.question.d(0, 1), { stroke: C.red, 'stroke-width': 2.2, 'stroke-dasharray': '7 5' }, q, 0.75 * (1 - R(T, 37, 38)), 'top');
+    if (q > 0 && q < 1) G.comet(PATHS.question, q, 0.3, C.red, 5, 0.95);
+    G.glow(60, 392, 60, '#FFE7B8', 0.45 * bump(T, 30, 31, 35, 37));
+    G.glow(560, 805, 110, '#FFB8A8', 0.35 * R(T, 33.5, 35) * (0.85 + 0.15 * Math.sin(A * 2)));
+    W('Bacterium', bump(T, 30.2, 31, 36, 37.5), C.green);
+    W('alveolus', R(T, 33.8, 34.6), C.red);
   },
   hud(T) {
     tagAt('alv', ...LP('this scene', 0.5, -1.6), 'alveolus ≈ 200 µm', bump(T, 4, 5, 7, 7.6), -1);
-    tagAt('mac', 430, 120, 'macrophage ≈ 20 µm', bump(T, 10.5, 11.5, 14.5, 15.5), 1);
+    tagAt('mac', 430, 120, 'macrophage ≈ 20 µm', bump(T, 10.5, 11.5, 13.5, 14.5), 1);
+    tagAt('epi', 300, 765, 'air-facing epithelium', bump(T, 13.6, 14.6, 16.5, 17.2), 1);
+    tagAt('surf', 112, 750, 'surfactant', bump(T, 18.4, 19.2, 22, 22.8), -1);
+    tagAt('eat', S1.dying[0], S1.dying[1] - 7, 'dying cell · "eat-me" signal', bump(T, 22.4, 23.2, 25.4, 26), -1);
+    tagAt('eff', S1.foot[0] + 8, S1.foot[1] - 8, 'efferocytosis · calms inflammation', bump(T, 26.8, 27.6, 29.4, 30), 1);
   },
 });
 
 /* ---------------------------------------------------------------- 2 · recognition -> phagosome maturation (one take) */
 SCENES.push({
   id: 's2', num: '2', title: 'Recognition', speaker: 'Nerea', sub: 'phagocytosis and maturation', color: '#C0392B', hit: [20, 240, 330, 300],
-  beats: [['the bacterium', 7], ['receptors bind', 9], ['TLR4 → NF-κB', 6], ['Src → Syk → PI3K', 8], ['Arp2/3 · actin', 8], ['the cup closes', 7], ['nascent', 5], ['early · Rab5', 7], ['late · Rab7', 8]],
+  beats: [['the bacterium · opsonins', 7], ['receptors bind', 9], ['signals → actin', 14], ['pseudopodia', 8], ['the cup closes', 7], ['the phagosome', 5], ['early phagosome', 7], ['V-ATPase · pH falls', 8]],
   ambient: 0.35,
   cam(T) {
     const g = window.GEOM, [nx, ny] = g.nascent, [ex, ey] = g.early, [lx, ly] = g.late;
@@ -719,7 +896,7 @@ SCENES.push({
   mag(T) { return magFor(App.cam[2]); },
   shakes: [[2.9, 0.55], [8.5, 0.25], [9.4, 0.25], [10.3, 0.3], [11.2, 0.3], [12.1, 0.35], [28.6, 1.3], [41.9, 0.4]],
   flashes: [[2.9, 0.12], [8.5, 0.08], [9.4, 0.08], [10.3, 0.08], [11.2, 0.08], [12.1, 0.1], [28.6, 0.42], [41.9, 0.18]],
-  draw(T, A) {
+  draw(T, A, ctx = {}) {
     const [px, py, pr] = window.GEOM.phago, [bx, by] = Actors.m.bacterium_pl ? Actors.m.bacterium_pl.pivot : [px, py];
     const inLumen = (i, A, amp) => { const a = hash(i + 0.5) * TAU, r = pr * (0.25 + 0.6 * Math.sqrt(hash(i + 7.7))), [jx, jy] = brown(i, A, amp, 0.9); return [px + Math.cos(a) * r + jx, py + Math.sin(a) * r * 0.9 + jy]; };
     // 7a NOX2: the cytosolic subunits and Rac-GTP fly in and lock onto gp91phox · p22phox with a spring
@@ -794,6 +971,7 @@ SCENES.push({
       if (life < 0.95 && life > 0.05 && hash(i + Math.floor(T * 3)) > 0.82) FX.flare(x, y, 2.2, i, '#D6E4FF', 0.7 * life);
     }
     // 7f the pieces leave as amino acids through the exporter; one rides all the way up to the ER
+    if (ctx.noReuse) return;   // v1.1: the fate of the fragments is Eneritz's (section 4)
     Actors.pose('killing.exporter', { wob: 0.9 * R(T, 33, 34) * (1 - R(T, 41, 42)) });
     const outPath = Pth([[px + 6, py + 12], [px + 26, py + 46], [px + 42, py + 60], [px + 72, py + 66]]);
     FX.flow(outPath, A, 9, 2.4, C.green, { sprite: 'sp-aa', s: 0.95, op: R(T, 33, 34.5) * (1 - R(T, 41.5, 42.5)), jitter: 1.2, spin: 2, tail: 0.1 });
@@ -960,12 +1138,15 @@ SCENES.push({
 /* ---------------------------------------------------------------- 6 · conclusion: the V */
 SCENES.push({
   id: 's6', num: '6', title: 'Two routes converge to destroy', speaker: 'Aitor', color: '#1E9B6B', hit: [20, 845, 1060, 25],
-  beats: [['the whole cell', 4], ['the V', 9], ['when particles persist', 6], ['destroys', 7]],
+  beats: [['the whole cell', 4], ['organisation', 9], ['uptake ≠ defence', 6], ['the lung must breathe', 7]],
   ambient: 0.5, titleOut: 7, shakes: [[10.4, 0.7]], flashes: [[10.4, 0.42]],
   cam(T) { return Cam.track([{ t: 0, r: [-26, -22, 1152, 944] }], T); },
   focus(T) { return { x: 560, y: 520, rx: 700, ry: 520, k: 0.3 * R(T, 0, 2) * (1 - R(T, 24, 26)) }; },
   draw(T, A, ctx) {
-    ctx.breathRate = 2.2; ctx.breathAmp = 0.35;
+    // the injured lung breathes fast and shallow; the last words (the lung's ability to breathe) let it breathe freely
+    const free = R(T, 22.5, 26.5, ease.sine);
+    ctx.breathRate = lerp(2.2, 1, free); ctx.breathAmp = lerp(0.35, 1, free);
+    G.glow(820, 800, 160, '#9FE3C3', 0.3 * free * (0.8 + 0.2 * Math.sin(A * 1.3)));
     const ur = R(T, 4.5, 10.5, ease.sine), ub = R(T, 5, 10.5, ease.sine);
     if (T > 4.5) { G.comet(PATHS.red, ur, 0.9, C.red, 3.4, 0.95); G.comet(PATHS.blue, ub, 0.9, C.blue, 3.2, 0.95); }
     const [px, py] = window.GEOM.phago;
@@ -1001,6 +1182,141 @@ SCENES.push({
     HUD.credits(R(T, 9.5, 11), [['Aitor', '#1E2433'], ['Nerea', '#C0392B'], ['Urtzi', '#1F58C8'], ['Eneritz', '#7A3FB5'], ['Nora', '#B4690E']], T - 9.5);
   },
 });
+
+/* ================================================================== v1.1: the order and wording of the talk
+   (SPEECH_SCRIPT.md). s27 becomes the close of Nerea's section (script 02): the phagolysosome forms, acid, hydrolases,
+   the bacterium falls apart, and NOX2 last ("alongside this ... even before the mature phagolysosome"). The fate of
+   the fragments moves to Eneritz (script 04), whose section now opens with the Rab switch and ends with MHC II.
+   The original timelines are reused through time maps, so the animation itself is unchanged. */
+(() => {
+  const find = id => SCENES.find(x => x.id === id);
+  // ---------------------------------------------------------------- s27 (Nerea)
+  const k = find('s27'), kDraw = k.draw, kHud = k.hud, kCam = k.cam;
+  const OP = 6, tp = T => Math.min(T - OP + 13.5, 35.2);        // after the opener: the original from its acid beat
+  k.beats = [['the phagolysosome forms', OP], ['acid · pH 4.5', 6.5], ['hydrolases wake', 6.5], ['the bacterium falls apart', 6.5], ['NOX2 · from 2.3 on', 10]];
+  k.shakes = [[3.6, 0.6], [21.1, 1.3]]; k.flashes = [[3.6, 0.2], [21.1, 0.42]];
+  k.cam = T => {
+    const [px, py] = window.GEOM.phago, nox = LP('NOX2'), va = LP('V-ATPase', 0.5, 0.5, [700, 610]);
+    return Cam.track([
+      { t: 0, r: box(555, 645, 340, 192) },
+      { t: OP, r: box(va[0] - 25, va[1] + 15, 110, 90), d: 1.8 },
+      { t: 12.5, r: box(px, py, 170, 150), d: 2 },
+      { t: 19, r: box(px - 5, py + 8, 110, 90), d: 1.8 },
+      { t: 25.5, r: box(nox[0] - 18, nox[1] + 12, 128, 98), d: 1.8 },
+      { t: 30.6, r: box(450, 640, 470, 265), d: 2.4 },
+    ], T);
+  };
+  k.focus = T => { const c = App.cam; return { x: c[0], y: c[1], rx: c[2] * 0.42, ry: c[2] / Cam.aspect * 0.46, k: T > 30.6 ? 0.35 : 0.7 }; };
+  const nox2 = (t, A) => {
+    const g = window.GEOM, [px, py, pr] = g.phago;
+    Actors.pose('killing.nox2', { wob: 0.4 + 0.9 * bump(t, 0, 0.6, 3, 4) });
+    ['NOX2', 'gp91phox', 'p47', 'Rac-GTP', 'NADPH'].forEach((q, i) => W(q, R(t, 0.2 + i * 0.4, 1 + i * 0.4) * (1 - R(t, 9, 10)), C.mag));
+    const nad = LP('NADPH', 0.1, 0.5), e = LP('e⁻', 0.5, 0.5, [672, 688]);
+    for (let i = 0; i < 6; i++) {                       // electrons leap from NADPH across the membrane; superoxide pops
+      const t0 = 1.2 + i * 0.7, land = [px + Math.cos(i * 2.1) * pr * 0.55, py + Math.sin(i * 2.1) * pr * 0.5];
+      const path = Pth([nad, [e[0] + 6, e[1] + 2], e, land]);
+      const pos = tt => { const p = path.at(R(tt, t0, t0 + 0.7, ease.in)); return [p.x, p.y]; };
+      if (t > t0 && t < t0 + 0.75) FX.streak(pos, t, 0.2, '#FFD447', 0.9, 1);
+      FX.burst(land[0], land[1], t, t0 + 0.7, 8, 14, C.ros, { sprite: 'sp-ros', s: 0.8, seed: i * 5, dur: 1.1 });
+    }
+    W('O₂ → O₂', R(t, 2, 2.8) * (1 - R(t, 9, 10)), C.ros);
+    // ... and it began well before the mature phagolysosome: the burst starts at the nascent phagosome (2.3)
+    W('burst starts at 2.3', R(t, 5, 5.8), C.mag);
+    [g.nascent, g.early, g.late].forEach(([x, y, r], j) => {
+      const on = R(t, 5.8 + j * 0.45, 6.4 + j * 0.45);
+      for (let i = 0; i < 7; i++) { const tt = frac(A / 1.4 + i * 0.19 + j * 0.3), a = i * 0.9 + j; G.use('sp-ros', x + Math.cos(a) * r * 0.55 * (0.5 + 0.5 * tt), y + Math.sin(a) * r * 0.5 * (0.5 + 0.5 * tt), 0.8 + 0.4 * tt, A * 2 + i, on * bump(tt, 0, 0.15, 0.4, 0.8)); }
+      G.glow(x, y, r * 1.2, C.ros, 0.22 * on);
+    });
+    const u = R(t, 5.4, 8.6, ease.sine);
+    if (u > 0 && u < 1) G.comet(PATHS.red, lerp(0.36, 1, u), 0.15, C.ros, 2.8, 0.9);
+  };
+  k.draw = function (T, A, ctx = {}) {
+    const [px, py, pr] = window.GEOM.phago;
+    if (T < OP) {
+      // the late phagosome moves deeper into the cell and meets lysosomes: a hybrid organelle (no machinery named:
+      // that is Eneritz's section)
+      const u = R(T, 0.4, 3.6, ease.sine), v = R(T, 0.8, 3.6, ease.sine);
+      if (u > 0 && u < 1) G.comet(PATHS.red, lerp(0.7, 1, u), 0.14, C.red, 3, 0.9);
+      if (v > 0 && v < 1) G.comet(PATHS.blue, lerp(0.72, 1, v), 0.14, C.blue, 2.6, 0.9);
+      for (let i = 0; i < 4; i++) {
+        const t0 = 0.8 + i * 0.5, p = PATHS.blue.at(lerp(0.8, 1, R(T, t0, t0 + 2.2, ease.in))), op = R(T, t0, t0 + 0.3) * (1 - R(T, t0 + 2, t0 + 2.4));
+        G.dot(p.x, p.y, 3, '#C9D8FA', 0.9 * op); G.ring(p.x, p.y, 3.2, C.blue, 0.7, op);
+        for (let j = 0; j < 3; j++) G.use('sp-hydro', p.x + Math.cos(j * 2.1 + A) * 1.4, p.y + Math.sin(j * 2.1 + A) * 1.4, 0.55, A + j, op);
+      }
+      FX.shock(px, py, T, 3.6, pr * 1.6, C.violet, 1.4, 1.1);
+      FX.bloom(px, py, pr * 1.2, C.violet, 0.5 * bump(T, 3.5, 3.9, 5, 6));
+      FX.lumen(px, py, pr * 1.02, 5.5, 0.3 * R(T, 3.6, 5), A);
+      Actors.pose('bacterium_pl', { st: 0 });            // still whole: the killing is the next beats
+      W('Late phagosome', bump(T, 0.6, 1.4, 4.5, 5.5), C.red);
+      W('Lysosome', bump(T, 0.9, 1.7, 4.5, 5.5), C.blue);
+      W('Phagolysosome', R(T, 3.8, 4.6), C.violet);
+      return;
+    }
+    kDraw.call(this, tp(T), A, { ...ctx, noReuse: true });
+    W('Phagolysosome', 1 - R(T, OP + 2, OP + 3), C.violet);
+    if (T > 25.3) nox2(T - 25.5, A);
+  };
+  k.hud = T => { if (T >= OP) kHud.call(k, tp(T)); };
+
+  // ---------------------------------------------------------------- s4 (Eneritz)
+  const f = find('s4'), fDraw = f.draw, fHud = f.hud, fCam = f.cam, fFocus = f.focus;
+  const RB = 9, END = RB + 38, FR = 9, KT = t => 33.2 + t * 11.3 / FR;   // s4's own 38 s; the fragments map onto s27 33.2-44.5
+  f.sub = 'Rab switch · tether · SNARE zipper · recycling';
+  f.beats = [['the Rab switch', RB], ['a lysosome arrives', 5.5], ['a · tether', 6.5], ['b · zipper', 7.5], ['c · pore', 6.5], ['d · recycle', 6.5], ['into the phagolysosome', 5.5], ['the fragments · reuse', FR], ['MHC II · T cells', 9]];
+  f.shakes = f.shakes.map(([t, a]) => [t + RB, a]).concat([[END + (41.9 - 33.2) * FR / 11.3, 0.4], [END + FR + 4.1, 0.25]]);
+  f.flashes = f.flashes.map(([t, a]) => [t + RB, a]);
+  const MHC = [690, 753];                                  // where the macrophage's lower membrane passes under the phagolysosome
+  f.cam = T => {
+    if (T < RB) { const [ex, ey] = window.GEOM.early, [lx, ly] = window.GEOM.late; return Cam.track([{ t: 0, r: box((ex + lx) / 2 + 30, (ey + ly) / 2 - 8, 250, 160) }], T); }
+    if (T < END) return fCam.call(f, T - RB);
+    if (T < END + FR) return kCam.call(k, KT(T - END));
+    return Cam.track([{ t: 0, r: box(MHC[0] - 20, MHC[1] - 40, 230, 130) }], 0);
+  };
+  f.focus = T => {
+    if (T >= RB && T < END) return fFocus.call(f, T - RB);
+    const c = App.cam; return { x: c[0], y: c[1], rx: c[2] * 0.42, ry: c[2] / Cam.aspect * 0.46, k: 0.5 };
+  };
+  const rabBeat = (T, A) => {
+    const g = window.GEOM;
+    // Rab dots on both phagosomes flip off -> on (grey -> colour) and back, in step with the switch card
+    [[g.early, C.rab5], [g.late, C.rab7]].forEach(([[x, y, r], col], j) => {
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * TAU + j, c = frac(A / 3.2 + i * 0.1 + j * 0.5), on = c > 0.33 && c < 0.6;
+        G.dot(x + Math.cos(a) * (r + 1.6), y + Math.sin(a) * (r + 1.6), on ? 1.5 : 1.1, on ? col : '#9AA3B5', 0.95 * R(T, 0.6, 1.4) * (1 - R(T, RB - 0.5, RB)));
+        if (on) G.glow(x + Math.cos(a) * (r + 1.6), y + Math.sin(a) * (r + 1.6), 3.2, col, 0.5 * R(T, 0.6, 1.4));
+      }
+    });
+    W('Rab5-GTP', R(T, 1, 1.8) * (1 - R(T, RB - 0.5, RB)), C.rab5);
+    W('Rab7-GTP', R(T, 1.8, 2.6) * (1 - R(T, RB - 0.5, RB)), C.rab7);
+  };
+  const mhcBeat = (t, A) => {
+    const [px, py] = window.GEOM.phago;
+    Actors.pose('bacterium_pl', { op: 0 });                // digested (section 2.7)
+    const P = Pth([[px + 6, py + 20], [px + 22, py + 42], [MHC[0] - 18, MHC[1] - 8], MHC]);
+    for (let i = 0; i < 5; i++) {                           // MHC II with its peptide rides to the surface and stays there
+      const t0 = 0.4 + i * 0.55, u = R(t, t0, t0 + 2.4, ease.sine); if (u <= 0) continue;
+      const p = P.at(u), x = p.x + (i - 2) * 6.5 * R(u, 0.85, 1), y = p.y, op = R(u, 0, 0.08);
+      G.line([[x - 1.1, y + 2.8], [x - 1.1, y - 0.9]], '#C08A2E', 0.9, op); G.line([[x + 1.1, y + 2.8], [x + 1.1, y - 0.9]], '#C08A2E', 0.9, op);
+      G.line([[x - 1.5, y - 1.3], [x + 1.5, y - 1.3]], C.green, 1.1, op);
+    }
+    G.glow(MHC[0], MHC[1], 26, '#B8E6C8', 0.5 * bump(t, 3, 3.6, 6, 8));
+  };
+  f.draw = function (T, A, ctx = {}) {
+    if (T < RB) return rabBeat(T, A);
+    if (T < END) return fDraw.call(this, T - RB, A, ctx);
+    if (T < END + FR) { kDraw.call(k, KT(T - END), A, ctx); W('Phagolysosome', 1 - R(T, END + 1, END + 2), C.violet); return; }
+    mhcBeat(T - END - FR, A);
+  };
+  f.hud = T => {
+    if (T < RB) Cards.rab(R(T, 0.8, 1.6) * (1 - R(T, RB - 0.6, RB)), T - 0.8);
+    else if (T < END) fHud.call(f, T - RB);
+    else if (T >= END + FR) Cards.mhc(R(T, END + FR + 0.3, END + FR + 1), T - END - FR - 0.3);
+  };
+
+  // ---------------------------------------------------------------- the order of the talk
+  const ORDER = ['open', 'intro', 'map', 's1', 's2', 's27', 's3', 's4', 's5', 's6', 'fin'];
+  SCENES.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+})();
 
 /* ------------------------------------------------------------------ the dive: motes of air rushing past in depth
    (GPU only).  Each mote lives in a tunnel in front of the camera: it is projected through a pinhole, so near ones are

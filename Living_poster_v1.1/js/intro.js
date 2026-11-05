@@ -663,7 +663,7 @@ const Intro = {
 
 /* ================================================================== the route map ================================================================== */
 const Trip = {
-  ids: ['s1', 's2', 's3', 's4', 's27', 's5', 's6'],
+  ids: ['s1', 's2', 's27', 's3', 's4', 's5', 's6'],      // v1.1: the order of the talk (Nerea closes with 2.7)
   heads: { s1: 'Alveolar macrophage', s2: 'Recognition', s3: 'Lysosome biogenesis', s4: 'Fusion', s27: 'Killing', s5: 'Particles', s6: 'Two routes' },
   isStop(s) { return !!s && this.ids.includes(s.id); },
   navList() { return this._nav || (this._nav = this.ids.map(id => SCENES.find(s => s.id === id)).filter(Boolean)); },
