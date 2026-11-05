@@ -744,9 +744,10 @@ function render(dt) {
   const camV = App.camS ? Math.hypot(App.camS.vx, App.camS.vy) / cam[2] + Math.abs(App.camS.vl) : 0;
   const wobT = trip ? 0 : 1 - clamp((camV - 0.3) / 0.5);
   Actors.wobK += (wobT - Actors.wobK) * (1 - Math.exp(-dt / (wobT > Actors.wobK ? 0.35 : 0.15)));
-  Tiles.update(cam, lbox);
-  LOD.update(cam, lbox, App.loupe.curMag || 1);
-  Actors.end(A); Regions.end(A); Overs.end(); G.end(); Intro.end();
+  // the disease sheet (section 5): while it covers the poster completely, the poster needs no tiles or sharper cut-outs
+  if (!PathoSheet.full) { Tiles.update(cam, lbox); LOD.update(cam, lbox, App.loupe.curMag || 1); }
+  Actors.end(A); Regions.end(A); Overs.end(); G.end(); Intro.end(); guard('sheet', () => PathoSheet.end());
+  if (PathoSheet.full) show($('plate'), false);
   if (GLFX.ok) GLFX.render(cam, Cam.aspect, world === 'poster' ? Loupe.lens : null, 1 - live, world === 'poster' ? App.focus : null);
   Flash.update(s, T);
   Depth.update(cam, A, dt, world === 'poster');
